@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const JOKE_INTERVAL_MS = 20_000;
 const FADE_MS = 320;
+const BATCH_SIZE = 10;
+const PREFETCH_AT_REMAINING = 3;
 
 interface GopnikCommentatorProps {
   checking: boolean;
@@ -21,12 +23,16 @@ export default function GopnikCommentator({
   const [visible, setVisible] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  const queueRef = useRef<string[]>([]);
   const recentRef = useRef<string[]>([]);
   const progressRef = useRef(progress);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wasCheckingRef = useRef(false);
   const busyRef = useRef(false);
+  const prefetchingRef = useRef(false);
+  const checkingRef = useRef(checking);
 
+  checkingRef.current = checking;
   progressRef.current = progress;
 
   const clearJokeInterval = useCallback(() => {
@@ -36,93 +42,181 @@ export default function GopnikCommentator({
     }
   }, []);
 
-  const requestLine = useCallback(
-    async (mode: 'joke' | 'finale'): Promise<string | null> => {
-      const params = new URLSearchParams();
+  const fetchJokeBatch = useCallback(async (): Promise<string[]> => {
+    const params = new URLSearchParams();
+    params.set('count', String(BATCH_SIZE));
 
-      if (mode === 'finale') {
-        params.set('mode', 'finale');
-        const p = progressRef.current;
-        if (p?.total) {
-          params.set('context', `Проверка завершена: ${p.total} номеров`);
-        }
-      } else {
-        if (recentRef.current.length > 0) {
-          params.set('exclude', recentRef.current.join('|'));
-        }
-        const p = progressRef.current;
-        if (p && p.total > 0) {
-          params.set('context', `Проверено ${p.current} из ${p.total} номеров`);
-        }
+    if (recentRef.current.length > 0) {
+      params.set('exclude', recentRef.current.join('|'));
+    }
+
+    const p = progressRef.current;
+    if (p && p.total > 0) {
+      params.set('context', `Проверено ${p.current} из ${p.total} номеров`);
+    }
+
+    const response = await fetch(`/api/joke?${params.toString()}`);
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as { jokes?: string[]; joke?: string };
+    if (Array.isArray(data.jokes) && data.jokes.length > 0) {
+      return data.jokes;
+    }
+    if (data.joke) return [data.joke];
+    return [];
+  }, []);
+
+  const prefetchBatch = useCallback(async () => {
+    if (prefetchingRef.current || !checkingRef.current) return;
+    prefetchingRef.current = true;
+
+    try {
+      const batch = await fetchJokeBatch();
+      if (batch.length > 0) {
+        queueRef.current.push(...batch);
       }
+    } catch {
+      // шутки не критичны
+    } finally {
+      prefetchingRef.current = false;
+    }
+  }, [fetchJokeBatch]);
 
-      const response = await fetch(`/api/joke?${params.toString()}`);
-      if (!response.ok) return null;
+  const maybePrefetch = useCallback(() => {
+    if (
+      queueRef.current.length <= PREFETCH_AT_REMAINING &&
+      !prefetchingRef.current
+    ) {
+      void prefetchBatch();
+    }
+  }, [prefetchBatch]);
 
-      const data = (await response.json()) as { joke: string };
-      if (mode === 'joke') {
-        recentRef.current = [...recentRef.current, data.joke].slice(-8);
-      }
-      return data.joke;
-    },
-    []
-  );
+  const takeNextJoke = useCallback(async (): Promise<string | null> => {
+    if (queueRef.current.length === 0) {
+      await prefetchBatch();
+    }
 
-  const showLine = useCallback(
-    async (mode: 'joke' | 'finale') => {
-      if (busyRef.current) return;
-      busyRef.current = true;
-      setBusy(true);
+    const joke = queueRef.current.shift() ?? null;
+    if (joke) {
+      recentRef.current = [...recentRef.current, joke].slice(-40);
+      maybePrefetch();
+    }
 
-      try {
-        setVisible(false);
-        await new Promise((resolve) => setTimeout(resolve, FADE_MS));
+    return joke;
+  }, [maybePrefetch, prefetchBatch]);
 
-        const line = await requestLine(mode);
-        if (line) setText(line);
+  const fetchFinale = useCallback(async (): Promise<string | null> => {
+    const params = new URLSearchParams();
+    params.set('mode', 'finale');
+    const p = progressRef.current;
+    if (p?.total) {
+      params.set('context', `Проверка завершена: ${p.total} номеров`);
+    }
 
-        setVisible(true);
-      } catch {
-        setVisible(true);
-      } finally {
-        busyRef.current = false;
-        setBusy(false);
-      }
-    },
-    [requestLine]
-  );
+    const response = await fetch(`/api/joke?${params.toString()}`);
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as { joke: string };
+    return data.joke;
+  }, []);
+
+  const showJoke = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+
+    try {
+      setVisible(false);
+      await new Promise((resolve) => setTimeout(resolve, FADE_MS));
+
+      const joke = await takeNextJoke();
+      if (joke) setText(joke);
+
+      setVisible(true);
+    } catch {
+      setVisible(true);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }, [takeNextJoke]);
+
+  const showFinale = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+
+    try {
+      setVisible(false);
+      await new Promise((resolve) => setTimeout(resolve, FADE_MS));
+
+      const line = await fetchFinale();
+      if (line) setText(line);
+
+      setVisible(true);
+    } catch {
+      setVisible(true);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }, [fetchFinale]);
 
   const scheduleJokeRotation = useCallback(() => {
     clearJokeInterval();
     intervalRef.current = setInterval(() => {
-      showLine('joke');
+      showJoke();
     }, JOKE_INTERVAL_MS);
-  }, [clearJokeInterval, showLine]);
+  }, [clearJokeInterval, showJoke]);
 
   const handleMore = () => {
     if (phase !== 'jokes' || !checking || busy) return;
     scheduleJokeRotation();
-    showLine('joke');
+    showJoke();
   };
+
+  const startJokes = useCallback(async () => {
+    queueRef.current = [];
+    recentRef.current = [];
+    prefetchingRef.current = false;
+
+    setBusy(true);
+    busyRef.current = true;
+
+    try {
+      const batch = await fetchJokeBatch();
+      if (batch.length > 0) {
+        const [first, ...rest] = batch;
+        queueRef.current = rest;
+        recentRef.current = [first];
+        setText(first);
+        setVisible(true);
+        maybePrefetch();
+      }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+
+    scheduleJokeRotation();
+  }, [fetchJokeBatch, maybePrefetch, scheduleJokeRotation]);
 
   useEffect(() => {
     if (checking) {
       wasCheckingRef.current = true;
       setPhase('jokes');
-      recentRef.current = [];
-      showLine('joke');
-      scheduleJokeRotation();
-
+      void startJokes();
       return () => clearJokeInterval();
     }
 
     if (wasCheckingRef.current) {
       wasCheckingRef.current = false;
       clearJokeInterval();
+      queueRef.current = [];
       setPhase('finale');
-      showLine('finale');
+      void showFinale();
     }
-  }, [checking, clearJokeInterval, scheduleJokeRotation, showLine]);
+  }, [checking, clearJokeInterval, showFinale, startJokes]);
 
   return (
     <div
@@ -145,7 +239,9 @@ export default function GopnikCommentator({
               }`}
             >
               {text ?? (
-                <span className="text-sm text-slate-500">Ща прикол затестим, подожди...</span>
+                <span className="text-sm text-slate-500">
+                  Ща нагенерю пачку приколов, подожди...
+                </span>
               )}
             </p>
           </div>

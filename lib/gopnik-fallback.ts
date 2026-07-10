@@ -14,7 +14,14 @@ const FALLBACK_JOKES = [
   'Телефонный спам — единственный спам, который мама не жарит с яйцами.',
   'Пейджер умер, а мы тут номера чистим. Эволюция, брат.',
   'Один номер проверили — уже как будто марафон пробежали. Лень — наше всё.',
+  'Хуйня в базе — не звони, а то потом разгребать, как с соседом после вписки.',
+  'Номер чистый — заебись, можно жать. Грязный — ну ты сам виноват, бля.',
+  'Спамер звонит — ты проверяешь. Красота жизни, брат, никто не сказал что будет легко.',
+  'База думает дольше меня после трёх пива — но зато не врёт так нагло.',
+  'Коллекторы обзванивают, а мы тут номера чистим. Кто кого, спрашивается?',
 ];
+
+export const JOKE_STYLE_EXAMPLES = FALLBACK_JOKES.slice(0, 8);
 
 const FINALE_MESSAGES = [
   'Ну всё, базу прогнали. Смотри отчёт и не обзванивай мусор.',
@@ -26,9 +33,31 @@ const FINALE_MESSAGES = [
 ];
 
 export function pickFallbackJoke(exclude: string[] = []): string {
-  const pool = FALLBACK_JOKES.filter((joke) => !exclude.includes(joke));
-  const source = pool.length > 0 ? pool : FALLBACK_JOKES;
-  return source[Math.floor(Math.random() * source.length)];
+  return pickFallbackJokesBatch(1, exclude)[0];
+}
+
+export function pickFallbackJokesBatch(
+  count: number,
+  exclude: string[] = []
+): string[] {
+  const result: string[] = [];
+  const used = new Set(exclude);
+
+  let pool = FALLBACK_JOKES.filter((joke) => !used.has(joke));
+  if (pool.length === 0) pool = [...FALLBACK_JOKES];
+
+  while (result.length < count) {
+    if (pool.length === 0) {
+      pool = FALLBACK_JOKES.filter((joke) => !result.includes(joke));
+      if (pool.length === 0) pool = [...FALLBACK_JOKES];
+    }
+    const index = Math.floor(Math.random() * pool.length);
+    const joke = pool.splice(index, 1)[0];
+    result.push(joke);
+    used.add(joke);
+  }
+
+  return result;
 }
 
 export function pickFinaleMessage(): string {
