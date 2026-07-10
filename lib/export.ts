@@ -1,6 +1,5 @@
 import type { PhoneCheckResult } from './types';
 import { getVerdictLabel } from './verdict-labels';
-import { verdictLabel } from './verdict-labels';
 
 function escapeCsvField(value: string): string {
   if (value.includes('"') || value.includes(',') || value.includes('\n')) {

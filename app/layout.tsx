@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Проверка номеров',
+  title: 'Агрессивная проверка номеров',
   description: 'Проверка российских телефонных номеров перед исходящим обзвоном',
 };
 

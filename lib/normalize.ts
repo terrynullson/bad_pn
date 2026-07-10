@@ -1,11 +1,55 @@
 const HEADER_PATTERN = /^(phone|номер|number)$/i;
+const LETTER_PATTERN = /[a-zA-Zа-яА-ЯёЁ]/;
+const PHONE_CHARS_PATTERN = /^[\d\s\-+().,;]*$/;
 
-export function normalizePhone(raw: string): string | null {
-  let digits = raw.replace(/[\s\-+()]/g, '');
+export interface InvalidInputLine {
+  lineNumber: number;
+  content: string;
+}
+
+export function stripToDigits(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
 
   if (digits.startsWith('8') && digits.length === 11) {
     digits = '7' + digits.slice(1);
   }
+
+  return digits;
+}
+
+export function lineHasInvalidChars(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  return (
+    LETTER_PATTERN.test(trimmed) || !PHONE_CHARS_PATTERN.test(trimmed)
+  );
+}
+
+export function findInvalidInputLines(text: string): InvalidInputLine[] {
+  return text
+    .split(/\r?\n/)
+    .map((line, index) => ({ line, lineNumber: index + 1 }))
+    .filter(({ line }) => lineHasInvalidChars(line))
+    .map(({ line, lineNumber }) => ({
+      lineNumber,
+      content: line.trim(),
+    }));
+}
+
+export function sanitizeInputText(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map((line) => {
+      const digits = stripToDigits(line.trim());
+      return digits;
+    })
+    .filter((line) => line.length > 0)
+    .join('\n');
+}
+
+export function normalizePhone(raw: string): string | null {
+  const digits = stripToDigits(raw);
 
   if (!/^7\d{10}$/.test(digits)) {
     return null;

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import FileUpload from '@/components/FileUpload';
+import GopnikCommentator from '@/components/GopnikCommentator';
 import ProgressBar from '@/components/ProgressBar';
 import ResultsTable from '@/components/ResultsTable';
 import { downloadCsv } from '@/lib/export';
@@ -81,7 +82,9 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-6">
-          <h1 className="text-2xl font-semibold text-slate-900">Проверка номеров</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            Агрессивная проверка номеров
+          </h1>
           <p className="mt-1 text-sm text-slate-600">
             Проверка российских номеров перед исходящим обзвоном
           </p>
@@ -96,6 +99,7 @@ export default function Home() {
         {isChecking && (
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <ProgressBar current={progress.current} total={progress.total} />
+            <GopnikCommentator active={isChecking} progress={progress} />
           </section>
         )}
 

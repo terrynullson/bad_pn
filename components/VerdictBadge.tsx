@@ -1,6 +1,5 @@
 import type { Verdict } from '@/lib/types';
 import { getVerdictLabel } from '@/lib/verdict-labels';
-import { verdictLabel } from '@/lib/verdict-labels';
 
 const STYLES: Record<Verdict, string> = {
   OK: 'bg-green-100 text-green-800',
