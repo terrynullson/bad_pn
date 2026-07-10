@@ -1,4 +1,4 @@
-export type Verdict = 'OK' | 'CAUTION' | 'REJECT' | 'INVALID';
+export type Verdict = 'OK' | 'PASS' | 'CAUTION' | 'REJECT' | 'INVALID';
 export type IssueSeverity = 'info' | 'warning' | 'error';
 
 export interface Issue {
@@ -31,6 +31,7 @@ export interface PhoneCheckResult {
 export interface CheckSummary {
   total: number;
   ok: number;
+  pass: number;
   caution: number;
   reject: number;
   invalid: number;

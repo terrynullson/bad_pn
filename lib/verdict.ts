@@ -27,8 +27,9 @@ const CAUTION_TAGS = ['реклама', 'коллектор'];
 const VERDICT_RANK: Record<Verdict, number> = {
   INVALID: 0,
   OK: 1,
-  CAUTION: 2,
-  REJECT: 3,
+  PASS: 2,
+  CAUTION: 3,
+  REJECT: 4,
 };
 
 function worstVerdict(verdicts: Verdict[]): Verdict {
@@ -725,6 +726,64 @@ function determineDeepSeekVerdict(data: DeepSeekCheck | null): Verdict {
   return data.verdict;
 }
 
+function hasNegativeSignal(sourceData: PhoneSourceData): boolean {
+  const kto = sourceData.ktozvonil;
+  const reputation = kto?.reputation;
+  const categories = kto ? collectCategories(kto) : [];
+
+  if (reputation?.is_spam || reputation?.level === 'danger') return true;
+  if ((reputation?.reviews_count ?? 0) > 5) return true;
+  if (
+    ((reputation?.reviews_count ?? 0) >= 1 && hasCautionTags(categories)) ||
+    reputation?.level === 'warning'
+  ) {
+    return true;
+  }
+
+  const sp = sourceData.spravportal;
+  if (sp?.isSpam || sp?.isUnwanted || sp?.isNegative) return true;
+  if (sp && sp.rating !== null && sp.rating <= 3) return true;
+
+  const cf = sourceData.callfilter;
+  if (cf?.isNegative || cf?.score === 'negative') return true;
+  if ((cf?.reviewsCount ?? 0) > 5) return true;
+
+  const ya = sourceData.yandexCaller;
+  if (ya?.isSpam || ya?.isUnwanted || ya?.isNegative) return true;
+
+  const ds = sourceData.deepseek;
+  if (ds?.available && (ds.verdict === 'REJECT' || ds.isSpam)) return true;
+
+  return false;
+}
+
+function finalizeVerdict(
+  sourceData: PhoneSourceData,
+  worst: Verdict
+): Verdict {
+  if (worst === 'INVALID' || worst === 'REJECT') return worst;
+  if (hasNegativeSignal(sourceData)) return worst;
+
+  const ds = sourceData.deepseek;
+
+  if (worst === 'OK') return 'OK';
+
+  if (
+    ds?.available &&
+    ds.verdict === 'OK' &&
+    ds.confidence >= 0.65 &&
+    (worst === 'CAUTION' || worst === 'PASS')
+  ) {
+    return 'PASS';
+  }
+
+  if (worst === 'CAUTION') {
+    return 'PASS';
+  }
+
+  return worst;
+}
+
 function buildSources(phone: string, sourceData: PhoneSourceData): Source[] {
   const spravportal = sourceData.spravportal;
   const sources: Source[] = [
@@ -818,7 +877,7 @@ export function buildResult(
     return rank[a.severity] - rank[b.severity];
   });
 
-  const verdict = worstVerdict([
+  const rawVerdict = worstVerdict([
     determineKtoZvonilVerdict(
       sourceData.ktozvonil,
       sourceData.ktozvonilUnavailable
@@ -828,6 +887,23 @@ export function buildResult(
     determineYandexCallerVerdict(sourceData.yandexCaller),
     determineDeepSeekVerdict(sourceData.deepseek),
   ]);
+
+  const verdict = finalizeVerdict(sourceData, rawVerdict);
+
+  if (verdict === 'PASS' && rawVerdict !== 'PASS') {
+    issues.push({
+      severity: 'info',
+      message:
+        'Явных жалоб нет, но данные неполные — номер можно обзванивать с осторожностью',
+      source: 'Система',
+      sourceUrl: '',
+    });
+  }
+
+  issues.sort((a, b) => {
+    const rank = { error: 0, warning: 1, info: 2 };
+    return rank[a.severity] - rank[b.severity];
+  });
 
   const ktoReviews = sourceData.ktozvonil?.reputation?.reviews_count ?? 0;
   const spravReviews = sourceData.spravportal?.reviewText ? 1 : 0;

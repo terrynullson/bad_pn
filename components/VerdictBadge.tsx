@@ -3,6 +3,7 @@ import { getVerdictLabel } from '@/lib/verdict-labels';
 
 const STYLES: Record<Verdict, string> = {
   OK: 'bg-green-100 text-green-800',
+  PASS: 'bg-lime-100 text-lime-900 ring-1 ring-lime-300',
   CAUTION: 'bg-yellow-100 text-yellow-800',
   REJECT: 'bg-red-100 text-red-800',
   INVALID: 'bg-slate-100 text-slate-600',

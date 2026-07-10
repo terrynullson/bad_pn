@@ -105,6 +105,7 @@ export function deduplicateWithMapping(
 export function buildSummary(results: { verdict: string }[]): {
   total: number;
   ok: number;
+  pass: number;
   caution: number;
   reject: number;
   invalid: number;
@@ -112,6 +113,7 @@ export function buildSummary(results: { verdict: string }[]): {
   return {
     total: results.length,
     ok: results.filter((r) => r.verdict === 'OK').length,
+    pass: results.filter((r) => r.verdict === 'PASS').length,
     caution: results.filter((r) => r.verdict === 'CAUTION').length,
     reject: results.filter((r) => r.verdict === 'REJECT').length,
     invalid: results.filter((r) => r.verdict === 'INVALID').length,

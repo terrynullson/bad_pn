@@ -24,11 +24,12 @@ function mergeSummaries(summaries: CheckSummary[]): CheckSummary {
     (acc, s) => ({
       total: acc.total + s.total,
       ok: acc.ok + s.ok,
+      pass: acc.pass + s.pass,
       caution: acc.caution + s.caution,
       reject: acc.reject + s.reject,
       invalid: acc.invalid + s.invalid,
     }),
-    { total: 0, ok: 0, caution: 0, reject: 0, invalid: 0 }
+    { total: 0, ok: 0, pass: 0, caution: 0, reject: 0, invalid: 0 }
   );
 }
 
@@ -118,9 +119,11 @@ export default function Home() {
             <section className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-700">
                 <span className="font-medium">{summary.total} номеров:</span>{' '}
-                {summary.ok} {getVerdictLabel('OK')} · {summary.caution}{' '}
-                {getVerdictLabel('CAUTION')} · {summary.reject}{' '}
-                {getVerdictLabel('REJECT')}
+                {summary.ok} {getVerdictLabel('OK')}
+                {summary.pass > 0 &&
+                  ` · ${summary.pass} ${getVerdictLabel('PASS')}`}{' '}
+                · {summary.caution} {getVerdictLabel('CAUTION')} ·{' '}
+                {summary.reject} {getVerdictLabel('REJECT')}
                 {summary.invalid > 0 &&
                   ` · ${summary.invalid} ${getVerdictLabel('INVALID')}`}
               </p>
