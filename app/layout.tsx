@@ -8,8 +8,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Агрессивная проверка номеров',
-  description: 'Проверка российских телефонных номеров перед исходящим обзвоном',
+  title: 'Проверка линий перед арендой',
+  description:
+    'Проверка репутации номеров перед арендой под исходящий обзвон — без метки «Спам» у абонента',
 };
 
 export default function RootLayout({

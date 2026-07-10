@@ -86,15 +86,22 @@ function buildInvalidResult(phone: string): PhoneCheckResult {
 function buildKtoZvonilIssues(
   data: KtoZvonilResponse | null,
   phone: string,
-  unavailable: boolean
+  unavailable: boolean,
+  failureReason: string | null
 ): Issue[] {
   const sourceUrl = ktoZvonilSourceUrl(phone);
   const issues: Issue[] = [];
 
   if (unavailable || !data) {
+    const proxyHint = failureReason?.includes('HTTP') || failureReason?.includes('сетевая')
+      ? ' — с Vercel без прокси KtoZvonil часто блокирует; задайте KTOZVONIL_PROXY_URL'
+      : '';
+
     issues.push({
       severity: 'warning',
-      message: 'Сервис KtoZvonil недоступен',
+      message: failureReason
+        ? `Не удалось проверить репутацию линии (KtoZvonil): ${failureReason}${proxyHint}`
+        : 'KtoZvonil недоступен — репутацию линии для исходящих не проверили',
       source: 'KtoZvonil',
       sourceUrl,
     });
@@ -124,7 +131,7 @@ function buildKtoZvonilIssues(
   if (reputation?.is_spam) {
     issues.push({
       severity: 'error',
-      message: 'Номер помечен как спам',
+      message: 'На линии метка спама — абонент может видеть «Спам» при звонке',
       source: 'KtoZvonil',
       sourceUrl,
       details: reputation.spam_reason ?? undefined,
@@ -134,7 +141,7 @@ function buildKtoZvonilIssues(
   if (reputation?.level === 'danger') {
     issues.push({
       severity: 'error',
-      message: 'Высокий уровень опасности',
+      message: 'Высокий риск — линию для исходящих лучше не брать',
       source: 'KtoZvonil',
       sourceUrl,
     });
@@ -157,7 +164,7 @@ function buildKtoZvonilIssues(
   ) {
     issues.push({
       severity: 'info',
-      message: 'В базе KtoZvonil нет жалоб на этот номер',
+      message: 'Репутация линии чистая — жалоб на номер нет',
       source: 'KtoZvonil',
       sourceUrl,
     });
@@ -787,7 +794,11 @@ function finalizeVerdict(
 
   const ds = sourceData.deepseek;
 
-  if (worst === 'OK') return 'OK';
+  if (worst === 'OK') {
+    return sourceData.ktozvonilUnavailable ? 'CAUTION' : 'OK';
+  }
+
+  let verdict: Verdict = worst;
 
   if (
     ds?.available &&
@@ -795,15 +806,16 @@ function finalizeVerdict(
     ds.confidence >= 0.65 &&
     (worst === 'CAUTION' || worst === 'PASS')
   ) {
-    return 'PASS';
+    verdict = 'PASS';
+  } else if (worst === 'CAUTION') {
+    verdict = isUncertainAnalysis(ds) ? 'CAUTION' : 'PASS';
   }
 
-  if (worst === 'CAUTION') {
-    if (isUncertainAnalysis(ds)) return 'CAUTION';
-    return 'PASS';
+  if (sourceData.ktozvonilUnavailable && verdict === 'PASS') {
+    verdict = 'CAUTION';
   }
 
-  return worst;
+  return verdict;
 }
 
 function buildSources(phone: string, sourceData: PhoneSourceData): Source[] {
@@ -870,7 +882,8 @@ export function buildResult(
   const ktoIssues = buildKtoZvonilIssues(
     sourceData.ktozvonil,
     normalized,
-    sourceData.ktozvonilUnavailable
+    sourceData.ktozvonilUnavailable,
+    sourceData.ktozvonilFailureReason
   );
   const hasApiKey = Boolean(process.env.WHO_CALLS_API_KEY && process.env.WHO_CALLS_API_URL);
   const spravIssues = buildSpravPortalIssues(
@@ -916,7 +929,17 @@ export function buildResult(
     issues.push({
       severity: 'info',
       message:
-        'Явных жалоб нет, но данные неполные — номер можно обзванивать с осторожностью',
+        'Явных жалоб нет, репутация чистая, но данных мало — линию можно брать в аренду с осторожностью',
+      source: 'Система',
+      sourceUrl: '',
+    });
+  }
+
+  if (sourceData.ktozvonilUnavailable && verdict === 'CAUTION' && rawVerdict !== 'REJECT') {
+    issues.push({
+      severity: 'warning',
+      message:
+        'Без KtoZvonil нельзя уверенно подтвердить чистоту линии — для аренды под исходящие лучше перепроверить',
       source: 'Система',
       sourceUrl: '',
     });

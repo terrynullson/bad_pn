@@ -86,10 +86,11 @@ export default function Home() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-6">
           <h1 className="text-2xl font-semibold text-slate-900">
-            Агрессивная проверка номеров
+            Проверка линий перед арендой
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Проверка российских номеров перед исходящим обзвоном
+            Отфильтруй номера с плохой репутацией — чтобы клиент не видел «Спам» при
+            исходящем звонке
           </p>
         </div>
       </header>

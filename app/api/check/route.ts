@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
           buildResult(samplePhone, null, {
             ktozvonil: null,
             ktozvonilUnavailable: false,
+            ktozvonilFailureReason: null,
             spravportal: null,
             callfilter: null,
             yandexCaller: null,

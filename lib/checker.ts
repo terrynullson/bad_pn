@@ -15,6 +15,7 @@ import type {
 export interface PhoneSourceData {
   ktozvonil: KtoZvonilResponse | null;
   ktozvonilUnavailable: boolean;
+  ktozvonilFailureReason: string | null;
   spravportal: SpravPortalCheck | null;
   callfilter: CallfilterCheck | null;
   yandexCaller: YandexCallerCheck | null;
@@ -25,7 +26,7 @@ export async function checkPhoneSources(
   phone: string,
   searchCache?: PhoneSearchCache
 ): Promise<PhoneSourceData> {
-  const [ktozvonil, callfilter] = await Promise.all([
+  const [ktoResult, callfilter] = await Promise.all([
     fetchKtoZvonil(phone),
     fetchCallfilter(phone),
   ]);
@@ -34,8 +35,9 @@ export async function checkPhoneSources(
   const yandexCaller = await fetchYandexCaller(phone, searchCache);
 
   const partialData: PhoneSourceData = {
-    ktozvonil,
-    ktozvonilUnavailable: ktozvonil === null,
+    ktozvonil: ktoResult.data,
+    ktozvonilUnavailable: ktoResult.data === null,
+    ktozvonilFailureReason: ktoResult.failureReason,
     spravportal,
     callfilter,
     yandexCaller,
