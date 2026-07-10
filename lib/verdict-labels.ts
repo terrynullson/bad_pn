@@ -9,7 +9,7 @@ export const VERDICT_LABELS: Record<Verdict, string> = {
 };
 
 export function getVerdictLabel(verdict: Verdict): string {
-  return VERDICT_LABELS[verdict];
+  return VERDICT_LABELS[verdict] ?? verdict;
 }
 
 /** @deprecated Используйте getVerdictLabel */

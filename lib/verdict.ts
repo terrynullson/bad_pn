@@ -605,6 +605,16 @@ function buildDeepSeekIssues(
     unofficial: true,
   });
 
+  if (data.confidence < 0.5) {
+    issues.push({
+      severity: 'warning',
+      message: 'ИИ не уверен в оценке — мало данных или сниппеты ненадёжны',
+      source: sourceName,
+      sourceUrl,
+      unofficial: true,
+    });
+  }
+
   if (data.verdict === 'REJECT' || data.isSpam) {
     issues.push({
       severity: 'error',
@@ -723,7 +733,18 @@ function determineDeepSeekVerdict(data: DeepSeekCheck | null): Verdict {
     return 'CAUTION';
   }
 
+  if (data.confidence < 0.5 || data.verdict === 'CAUTION') {
+    return 'CAUTION';
+  }
+
   return data.verdict;
+}
+
+function isUncertainAnalysis(ds: DeepSeekCheck | null | undefined): boolean {
+  if (!ds?.available) return true;
+  if (ds.confidence < 0.5) return true;
+  if (ds.verdict === 'CAUTION') return true;
+  return false;
 }
 
 function hasNegativeSignal(sourceData: PhoneSourceData): boolean {
@@ -778,6 +799,7 @@ function finalizeVerdict(
   }
 
   if (worst === 'CAUTION') {
+    if (isUncertainAnalysis(ds)) return 'CAUTION';
     return 'PASS';
   }
 
@@ -890,7 +912,7 @@ export function buildResult(
 
   const verdict = finalizeVerdict(sourceData, rawVerdict);
 
-  if (verdict === 'PASS' && rawVerdict !== 'PASS') {
+  if (verdict === 'PASS' && rawVerdict !== 'PASS' && !isUncertainAnalysis(sourceData.deepseek)) {
     issues.push({
       severity: 'info',
       message:

@@ -14,11 +14,14 @@ interface VerdictBadgeProps {
 }
 
 export default function VerdictBadge({ verdict }: VerdictBadgeProps) {
+  const safeVerdict: Verdict =
+    verdict in STYLES ? verdict : 'CAUTION';
+
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STYLES[verdict]}`}
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STYLES[safeVerdict]}`}
     >
-      {getVerdictLabel(verdict)}
+      {getVerdictLabel(safeVerdict)}
     </span>
   );
 }
