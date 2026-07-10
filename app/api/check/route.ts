@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
           spravportal: null,
           callfilter: null,
           yandexCaller: null,
+          deepseek: null,
         })
       );
       continue;

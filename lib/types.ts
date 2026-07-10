@@ -117,5 +117,19 @@ export interface YandexCallerCheck {
   sourceUrl: string;
 }
 
+export interface DeepSeekCheck {
+  available: boolean;
+  fallback: boolean;
+  verdict: Verdict;
+  confidence: number;
+  isUnwanted: boolean;
+  isNegative: boolean;
+  isSpam: boolean;
+  summary: string;
+  signals: string[];
+  snippetCount: number;
+  sourceUrl: string;
+}
+
 export const BATCH_SIZE = 8;
 export const MAX_BATCH_SIZE = 30;

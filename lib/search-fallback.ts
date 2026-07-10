@@ -261,7 +261,7 @@ function mergeSearchHits(...groups: (SearchHit[] | null | undefined)[]): SearchH
   return merged;
 }
 
-async function collectSearchHits(phone: string): Promise<{
+export async function collectPhoneSearchHits(phone: string): Promise<{
   hits: SearchHit[];
   sourceUrl: string;
 } | null> {
@@ -311,7 +311,7 @@ export async function fetchSearchFallback(
   if (!isFallbackEnabled()) return null;
 
   try {
-    const collected = await collectSearchHits(phone);
+    const collected = await collectPhoneSearchHits(phone);
     if (!collected) return null;
 
     const { hits, sourceUrl: searchSourceUrl } = collected;

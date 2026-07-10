@@ -1,4 +1,5 @@
 import { callfilterSourceUrl } from './callfilter';
+import { deepSeekCheckSourceUrl } from './deepseek-check';
 import { ktoZvonilSourceUrl } from './ktozvonil';
 import { duckDuckGoSearchUrl } from './search-fallback';
 import { isSerperEnabled } from './serper-search';
@@ -18,6 +19,7 @@ import type {
   SpravPortalCheck,
   Verdict,
   YandexCallerCheck,
+  DeepSeekCheck,
 } from './types';
 
 const CAUTION_TAGS = ['реклама', 'коллектор'];
@@ -572,6 +574,67 @@ function buildYandexCallerIssues(
   return issues;
 }
 
+function buildDeepSeekIssues(
+  data: DeepSeekCheck | null,
+  phone: string
+): Issue[] {
+  const sourceName = 'DeepSeek (ИИ-анализ)';
+  const sourceUrl = data?.sourceUrl ?? deepSeekCheckSourceUrl(phone);
+  const issues: Issue[] = [];
+
+  if (!data) return issues;
+
+  if (!data.available) {
+    issues.push({
+      severity: 'warning',
+      message: 'DeepSeek-анализ недоступен',
+      source: sourceName,
+      sourceUrl,
+      unofficial: true,
+    });
+    return issues;
+  }
+
+  issues.push({
+    severity: 'info',
+    message: `ИИ проанализировал ${data.snippetCount} поисковых сниппетов и сводку источников`,
+    source: sourceName,
+    sourceUrl,
+    details: `Уверенность: ${Math.round(data.confidence * 100)}%`,
+    unofficial: true,
+  });
+
+  if (data.verdict === 'REJECT' || data.isSpam) {
+    issues.push({
+      severity: 'error',
+      message: `DeepSeek: ${data.summary}`,
+      source: sourceName,
+      sourceUrl,
+      details: data.signals.join('; ') || undefined,
+      unofficial: true,
+    });
+  } else if (data.verdict === 'CAUTION') {
+    issues.push({
+      severity: 'warning',
+      message: `DeepSeek: ${data.summary}`,
+      source: sourceName,
+      sourceUrl,
+      details: data.signals.join('; ') || undefined,
+      unofficial: true,
+    });
+  } else {
+    issues.push({
+      severity: 'info',
+      message: `DeepSeek: ${data.summary}`,
+      source: sourceName,
+      sourceUrl,
+      unofficial: true,
+    });
+  }
+
+  return issues;
+}
+
 function determineKtoZvonilVerdict(
   data: KtoZvonilResponse | null,
   unavailable: boolean
@@ -652,6 +715,16 @@ function determineYandexCallerVerdict(data: YandexCallerCheck | null): Verdict {
   return 'OK';
 }
 
+function determineDeepSeekVerdict(data: DeepSeekCheck | null): Verdict {
+  if (!data?.available) return 'OK';
+
+  if (data.confidence < 0.35 && data.verdict === 'REJECT') {
+    return 'CAUTION';
+  }
+
+  return data.verdict;
+}
+
 function buildSources(phone: string, sourceData: PhoneSourceData): Source[] {
   const spravportal = sourceData.spravportal;
   const sources: Source[] = [
@@ -693,6 +766,14 @@ function buildSources(phone: string, sourceData: PhoneSourceData): Source[] {
     });
   }
 
+  if (sourceData.deepseek?.available) {
+    sources.push({
+      name: 'DeepSeek (ИИ-анализ)',
+      url: sourceData.deepseek.sourceUrl,
+      unofficial: true,
+    });
+  }
+
   return sources;
 }
 
@@ -724,12 +805,14 @@ export function buildResult(
     sourceData.yandexCaller,
     normalized
   );
+  const deepseekIssues = buildDeepSeekIssues(sourceData.deepseek, normalized);
 
   const issues = [
     ...ktoIssues,
     ...spravIssues,
     ...callfilterIssues,
     ...yandexIssues,
+    ...deepseekIssues,
   ].sort((a, b) => {
     const rank = { error: 0, warning: 1, info: 2 };
     return rank[a.severity] - rank[b.severity];
@@ -743,6 +826,7 @@ export function buildResult(
     determineSpravPortalVerdict(sourceData.spravportal),
     determineCallfilterVerdict(sourceData.callfilter),
     determineYandexCallerVerdict(sourceData.yandexCaller),
+    determineDeepSeekVerdict(sourceData.deepseek),
   ]);
 
   const ktoReviews = sourceData.ktozvonil?.reputation?.reviews_count ?? 0;
