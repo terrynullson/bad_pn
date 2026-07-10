@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Проверка номеров
 
-## Getting Started
+Веб-сервис проверки российских телефонных номеров перед исходящим обзвоном. Каждый номер проверяется через [KtoZvonil](https://ktozvonil.net) с формированием вердикта и отчёта.
 
-First, run the development server:
+## Возможности
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Загрузка номеров из TXT/CSV или вставка в textarea
+- Нормализация номеров (`8XXXXXXXXXX` → `7XXXXXXXXXX`)
+- Вердикты: OK, CAUTION, REJECT, INVALID
+- Таблица результатов с раскрытием деталей
+- Экспорт результатов в CSV
+- Пакетная проверка с прогресс-баром
+
+## Формат входных данных
+
+Один номер на строку, только цифры:
+
+```
+79968992714
+79968992736
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+CSV (заголовок опционален):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+phone
+79968992714
+79968992736
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Локальный запуск
 
-## Learn More
+```bash
+npm install
+cp .env.example .env.local   # опционально
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Откройте [http://localhost:3000](http://localhost:3000).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Сборка
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run build
+npm start
+```
 
-## Deploy on Vercel
+## Переменные окружения
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Переменная | Описание |
+|------------|----------|
+| `WHO_CALLS_API_KEY` | Опционально. Ключ SpravPortal WhoCalls API (заглушка, не используется в MVP) |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Деплой на Vercel
+
+1. Создайте репозиторий на GitHub и запушьте код:
+   ```bash
+   git remote add origin https://github.com/YOUR_USER/bad_phone_numbers.git
+   git push -u origin master
+   ```
+2. Перейдите на [vercel.com](https://vercel.com) → **Add New Project** → Import GitHub repo.
+3. Framework Preset: **Next.js** (определяется автоматически).
+4. При необходимости добавьте `WHO_CALLS_API_KEY` в Environment Variables.
+5. Нажмите **Deploy**.
+
+### Ограничения Vercel
+
+- На бесплатном тарифе (Hobby) лимит serverless-функции — **10 секунд**. Клиент отправляет батчи по **8 номеров** (1 запрос/сек к KtoZvonil).
+- На Pro можно увеличить `maxDuration` до 60 сек и использовать батчи до 25–30 номеров.
+
+## Стек
+
+- Next.js 14+ (App Router)
+- TypeScript
+- Tailwind CSS
