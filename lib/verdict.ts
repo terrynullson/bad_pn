@@ -1,6 +1,7 @@
 import { callfilterSourceUrl } from './callfilter';
 import { ktoZvonilSourceUrl } from './ktozvonil';
 import { duckDuckGoSearchUrl } from './search-fallback';
+import { isSerperEnabled } from './serper-search';
 import { spravportalSourceUrl, yandexSearchUrl } from './spravportal';
 import {
   yandexCallerHeuristicUrl,
@@ -235,6 +236,9 @@ function buildSpravPortalIssues(
   }
 
   if (data.blocked && data.method === 'none') {
+    const serperHint = isSerperEnabled()
+      ? 'Serper подключён, но сниппеты по номеру не найдены'
+      : 'Для поисковой эвристики добавьте SERPER_API_KEY (serper.dev) — DuckDuckGo часто блокирует серверы';
     issues.push({
       severity: 'warning',
       message:
@@ -242,8 +246,8 @@ function buildSpravPortalIssues(
       source: 'SpravPortal',
       sourceUrl: defaultUrl,
       details: hasApiKey
-        ? 'Проверьте WHO_CALLS_API_URL и WHO_CALLS_API_KEY в настройках Vercel'
-        : 'Запросите тестовый ключ на api@spravportal.ru',
+        ? `Проверьте WHO_CALLS_API_URL и WHO_CALLS_API_KEY в Vercel. ${serperHint}`
+        : `Запросите тестовый ключ SpravPortal API: api@spravportal.ru. ${serperHint}`,
     });
     issues.push({
       severity: 'info',

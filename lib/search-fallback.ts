@@ -1,4 +1,5 @@
 import type { SpravPortalCheck } from './types';
+import { fetchSerperHits, isSerperEnabled, serperSearchUrl } from './serper-search';
 
 const TIMEOUT_MS = 12_000;
 const DDG_HTML_URL = 'https://html.duckduckgo.com/html/';
@@ -214,25 +215,94 @@ async function fetchSearchHtml(url: string): Promise<string | null> {
 
 export async function fetchDdgHits(
   query: string,
-  phoneForHeuristic?: string
+  phoneForHeuristic?: string,
+  retry = true
 ): Promise<SearchHit[] | null> {
   const phone = phoneForHeuristic ?? query.replace(/\D/g, '');
 
-  const liteHtml = await fetchSearchHtml(
-    `${DDG_LITE_URL}?q=${encodeURIComponent(query)}`
-  );
-  if (liteHtml && !isSearchBlocked(liteHtml)) {
-    const liteHits = parseSearchResults(liteHtml, phone);
-    if (liteHits.length > 0) return liteHits;
+  const attempt = async (): Promise<SearchHit[] | null> => {
+    const liteHtml = await fetchSearchHtml(
+      `${DDG_LITE_URL}?q=${encodeURIComponent(query)}`
+    );
+    if (liteHtml && !isSearchBlocked(liteHtml)) {
+      const liteHits = parseSearchResults(liteHtml, phone);
+      if (liteHits.length > 0) return liteHits;
+    }
+
+    const html = await fetchSearchHtml(
+      `${DDG_HTML_URL}?q=${encodeURIComponent(query)}`
+    );
+    if (!html || isSearchBlocked(html)) return null;
+
+    const hits = parseSearchResults(html, phone);
+    return hits.length > 0 ? hits : null;
+  };
+
+  const first = await attempt();
+  if (first || !retry) return first;
+
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return attempt();
+}
+
+function mergeSearchHits(...groups: (SearchHit[] | null | undefined)[]): SearchHit[] {
+  const seen = new Set<string>();
+  const merged: SearchHit[] = [];
+
+  for (const group of groups) {
+    for (const hit of group ?? []) {
+      const key = `${hit.url}|${hit.title}|${hit.snippet}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(hit);
+    }
   }
 
-  const html = await fetchSearchHtml(
-    `${DDG_HTML_URL}?q=${encodeURIComponent(query)}`
-  );
-  if (!html || isSearchBlocked(html)) return null;
+  return merged;
+}
 
-  const hits = parseSearchResults(html, phone);
-  return hits.length > 0 ? hits : null;
+async function collectSearchHits(phone: string): Promise<{
+  hits: SearchHit[];
+  sourceUrl: string;
+} | null> {
+  const core = phone.slice(-10);
+  const formatted = `+7 (${core.slice(0, 3)}) ${core.slice(3, 6)}-${core.slice(6, 8)}-${core.slice(8)}`;
+  const queries = [
+    `${phone} нежелательный звонок`,
+    `site:spravportal.ru ${phone}`,
+    `${formatted} spravportal нежелательный`,
+    phone,
+  ];
+
+  const ddgGroups: SearchHit[][] = [];
+  for (const query of queries) {
+    const hits = await fetchDdgHits(query, phone);
+    if (hits?.length) ddgGroups.push(hits);
+  }
+
+  const ddgHits = mergeSearchHits(...ddgGroups);
+  if (ddgHits.length > 0) {
+    return {
+      hits: ddgHits,
+      sourceUrl: duckDuckGoSearchUrl(`${phone} нежелательный звонок`),
+    };
+  }
+
+  if (!isSerperEnabled()) return null;
+
+  const serperGroups: SearchHit[][] = [];
+  for (const query of queries) {
+    const hits = await fetchSerperHits(query);
+    if (hits?.length) serperGroups.push(hits);
+  }
+
+  const serperHits = mergeSearchHits(...serperGroups);
+  if (serperHits.length === 0) return null;
+
+  return {
+    hits: serperHits,
+    sourceUrl: serperSearchUrl(`${phone} нежелательный звонок`),
+  };
 }
 
 export async function fetchSearchFallback(
@@ -241,11 +311,10 @@ export async function fetchSearchFallback(
   if (!isFallbackEnabled()) return null;
 
   try {
-    const hits =
-      (await fetchDdgHits(`${phone} нежелательный звонок`, phone)) ??
-      (await fetchDdgHits(phone, phone));
-    if (!hits) return null;
+    const collected = await collectSearchHits(phone);
+    if (!collected) return null;
 
+    const { hits, sourceUrl: searchSourceUrl } = collected;
     const analysis = analyzePhoneSearchHits(phone, hits);
 
     if (!analysis.found) {
@@ -262,7 +331,7 @@ export async function fetchSearchFallback(
         categories: [],
         reviewText: null,
         fallbackSignals: ['В поиске нет явных сигналов по этому номеру'],
-        fallbackSourceUrl: duckDuckGoSearchUrl(phone),
+        fallbackSourceUrl: searchSourceUrl,
       };
     }
 
@@ -280,7 +349,7 @@ export async function fetchSearchFallback(
         categories: [],
         reviewText: null,
         fallbackSignals: ['Поиск не нашёл негативных меток по номеру'],
-        fallbackSourceUrl: analysis.spravportalUrl ?? duckDuckGoSearchUrl(phone),
+        fallbackSourceUrl: analysis.spravportalUrl ?? searchSourceUrl,
       };
     }
 
@@ -297,7 +366,7 @@ export async function fetchSearchFallback(
       categories: analysis.signals,
       reviewText: analysis.relevant[0]?.snippet || null,
       fallbackSignals: analysis.signals,
-      fallbackSourceUrl: analysis.spravportalUrl ?? duckDuckGoSearchUrl(phone),
+      fallbackSourceUrl: analysis.spravportalUrl ?? searchSourceUrl,
     };
   } catch {
     return null;
