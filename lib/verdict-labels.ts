@@ -10,3 +10,6 @@ export const VERDICT_LABELS: Record<Verdict, string> = {
 export function getVerdictLabel(verdict: Verdict): string {
   return VERDICT_LABELS[verdict];
 }
+
+/** @deprecated Используйте getVerdictLabel */
+export const verdictLabel = getVerdictLabel;
