@@ -6,6 +6,7 @@ import GopnikCommentator from '@/components/GopnikCommentator';
 import ProgressBar from '@/components/ProgressBar';
 import ResultsTable from '@/components/ResultsTable';
 import { downloadCsv } from '@/lib/export';
+import { parseJsonResponse, readErrorMessage } from '@/lib/api-response';
 import { getVerdictLabel } from '@/lib/verdict-labels';
 import type { CheckResponse, CheckSummary, PhoneCheckResult } from '@/lib/types';
 import { BATCH_SIZE } from '@/lib/types';
@@ -61,11 +62,10 @@ export default function Home() {
         });
 
         if (!response.ok) {
-          const data = (await response.json()) as { error?: string };
-          throw new Error(data.error ?? 'Ошибка проверки');
+          throw new Error(await readErrorMessage(response));
         }
 
-        const data = (await response.json()) as CheckResponse;
+        const data = await parseJsonResponse<CheckResponse>(response);
         allResults.push(...data.results);
         allSummaries.push(data.summary);
         checked += batch.length;

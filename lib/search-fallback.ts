@@ -261,10 +261,30 @@ function mergeSearchHits(...groups: (SearchHit[] | null | undefined)[]): SearchH
   return merged;
 }
 
-export async function collectPhoneSearchHits(phone: string): Promise<{
+export type PhoneSearchCacheEntry = {
   hits: SearchHit[];
   sourceUrl: string;
-} | null> {
+} | null;
+
+export type PhoneSearchCache = Map<string, PhoneSearchCacheEntry>;
+
+function storeSearchCache(
+  cache: PhoneSearchCache | undefined,
+  phone: string,
+  value: PhoneSearchCacheEntry
+): PhoneSearchCacheEntry {
+  cache?.set(phone, value);
+  return value;
+}
+
+export async function collectPhoneSearchHits(
+  phone: string,
+  cache?: PhoneSearchCache
+): Promise<PhoneSearchCacheEntry> {
+  if (cache?.has(phone)) {
+    return cache.get(phone) ?? null;
+  }
+
   const core = phone.slice(-10);
   const formatted = `+7 (${core.slice(0, 3)}) ${core.slice(3, 6)}-${core.slice(6, 8)}-${core.slice(8)}`;
   const queries = [
@@ -277,41 +297,49 @@ export async function collectPhoneSearchHits(phone: string): Promise<{
   const ddgGroups: SearchHit[][] = [];
   for (const query of queries) {
     const hits = await fetchDdgHits(query, phone);
-    if (hits?.length) ddgGroups.push(hits);
+    if (hits?.length) {
+      ddgGroups.push(hits);
+      if (mergeSearchHits(...ddgGroups).length >= 3) break;
+    }
   }
 
   const ddgHits = mergeSearchHits(...ddgGroups);
   if (ddgHits.length > 0) {
-    return {
+    return storeSearchCache(cache, phone, {
       hits: ddgHits,
       sourceUrl: duckDuckGoSearchUrl(`${phone} нежелательный звонок`),
-    };
+    });
   }
 
-  if (!isSerperEnabled()) return null;
+  if (!isSerperEnabled()) {
+    return storeSearchCache(cache, phone, null);
+  }
 
   const serperGroups: SearchHit[][] = [];
-  for (const query of queries) {
+  for (const query of queries.slice(0, 2)) {
     const hits = await fetchSerperHits(query);
     if (hits?.length) serperGroups.push(hits);
   }
 
   const serperHits = mergeSearchHits(...serperGroups);
-  if (serperHits.length === 0) return null;
+  if (serperHits.length === 0) {
+    return storeSearchCache(cache, phone, null);
+  }
 
-  return {
+  return storeSearchCache(cache, phone, {
     hits: serperHits,
     sourceUrl: serperSearchUrl(`${phone} нежелательный звонок`),
-  };
+  });
 }
 
 export async function fetchSearchFallback(
-  phone: string
+  phone: string,
+  cache?: PhoneSearchCache
 ): Promise<SpravPortalCheck | null> {
   if (!isFallbackEnabled()) return null;
 
   try {
-    const collected = await collectPhoneSearchHits(phone);
+    const collected = await collectPhoneSearchHits(phone, cache);
     if (!collected) return null;
 
     const { hits, sourceUrl: searchSourceUrl } = collected;

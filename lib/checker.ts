@@ -2,7 +2,7 @@ import { fetchCallfilter } from './callfilter';
 import { fetchDeepSeekCheck } from './deepseek-check';
 import { fetchKtoZvonil } from './ktozvonil';
 import { fetchSpravPortal } from './spravportal';
-import { delay } from './rate-limit';
+import type { PhoneSearchCache } from './search-fallback';
 import { fetchYandexCaller } from './yandex-caller';
 import type {
   CallfilterCheck,
@@ -22,18 +22,16 @@ export interface PhoneSourceData {
 }
 
 export async function checkPhoneSources(
-  phone: string
+  phone: string,
+  searchCache?: PhoneSearchCache
 ): Promise<PhoneSourceData> {
-  const ktozvonil = await fetchKtoZvonil(phone);
-  await delay(400);
+  const [ktozvonil, callfilter] = await Promise.all([
+    fetchKtoZvonil(phone),
+    fetchCallfilter(phone),
+  ]);
 
-  const spravportal = await fetchSpravPortal(phone);
-  await delay(400);
-
-  const callfilter = await fetchCallfilter(phone);
-  await delay(400);
-
-  const yandexCaller = await fetchYandexCaller(phone);
+  const spravportal = await fetchSpravPortal(phone, searchCache);
+  const yandexCaller = await fetchYandexCaller(phone, searchCache);
 
   const partialData: PhoneSourceData = {
     ktozvonil,
@@ -44,8 +42,7 @@ export async function checkPhoneSources(
     deepseek: null,
   };
 
-  await delay(300);
-  const deepseek = await fetchDeepSeekCheck(phone, partialData);
+  const deepseek = await fetchDeepSeekCheck(phone, partialData, searchCache);
 
   return {
     ...partialData,

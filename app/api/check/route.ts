@@ -7,12 +7,12 @@ import {
   parseNumbersFromCsv,
   parseNumbersFromText,
 } from '@/lib/normalize';
-import { delay } from '@/lib/rate-limit';
+import type { PhoneSearchCache } from '@/lib/search-fallback';
 import type { CheckResponse, PhoneCheckResult } from '@/lib/types';
 import { MAX_BATCH_SIZE } from '@/lib/types';
 import { buildResult } from '@/lib/verdict';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 async function parseNumbersFromRequest(
   request: NextRequest
@@ -49,82 +49,89 @@ async function parseNumbersFromRequest(
 }
 
 export async function POST(request: NextRequest) {
-  const numbers = await parseNumbersFromRequest(request);
+  try {
+    const numbers = await parseNumbersFromRequest(request);
 
-  if (!numbers) {
-    return NextResponse.json(
-      { error: 'Ожидается JSON { numbers: string[] } или multipart/form-data с file' },
-      { status: 400 }
-    );
-  }
-
-  if (numbers.length === 0) {
-    return NextResponse.json(
-      { error: 'Загрузите номера' },
-      { status: 400 }
-    );
-  }
-
-  if (numbers.length > MAX_BATCH_SIZE) {
-    return NextResponse.json(
-      { error: `Максимум ${MAX_BATCH_SIZE} номеров за один запрос` },
-      { status: 400 }
-    );
-  }
-
-  const mapping = deduplicateWithMapping(numbers);
-  const uniqueResults = new Map<string, PhoneCheckResult>();
-
-  let isFirstApiCall = true;
-
-  for (const [key, originals] of mapping.entries()) {
-    const samplePhone = originals[0];
-    const isInvalidKey = key.startsWith('__invalid__:');
-    const normalized = isInvalidKey ? null : key;
-
-    if (!normalized) {
-      uniqueResults.set(
-        key,
-        buildResult(samplePhone, null, {
-          ktozvonil: null,
-          ktozvonilUnavailable: false,
-          spravportal: null,
-          callfilter: null,
-          yandexCaller: null,
-          deepseek: null,
-        })
+    if (!numbers) {
+      return NextResponse.json(
+        {
+          error:
+            'Ожидается JSON { numbers: string[] } или multipart/form-data с file',
+        },
+        { status: 400 }
       );
-      continue;
     }
 
-    if (!isFirstApiCall) {
-      await delay(1000);
+    if (numbers.length === 0) {
+      return NextResponse.json({ error: 'Загрузите номера' }, { status: 400 });
     }
-    isFirstApiCall = false;
 
-    const sourceData = await checkPhoneSources(normalized);
-    uniqueResults.set(key, buildResult(samplePhone, normalized, sourceData));
+    if (numbers.length > MAX_BATCH_SIZE) {
+      return NextResponse.json(
+        { error: `Максимум ${MAX_BATCH_SIZE} номеров за один запрос` },
+        { status: 400 }
+      );
+    }
+
+    const mapping = deduplicateWithMapping(numbers);
+    const uniqueResults = new Map<string, PhoneCheckResult>();
+    const searchCache: PhoneSearchCache = new Map();
+
+    for (const [key, originals] of mapping.entries()) {
+      const samplePhone = originals[0];
+      const isInvalidKey = key.startsWith('__invalid__:');
+      const normalized = isInvalidKey ? null : key;
+
+      if (!normalized) {
+        uniqueResults.set(
+          key,
+          buildResult(samplePhone, null, {
+            ktozvonil: null,
+            ktozvonilUnavailable: false,
+            spravportal: null,
+            callfilter: null,
+            yandexCaller: null,
+            deepseek: null,
+          })
+        );
+        continue;
+      }
+
+      const sourceData = await checkPhoneSources(normalized, searchCache);
+      uniqueResults.set(key, buildResult(samplePhone, normalized, sourceData));
+    }
+
+    const results: PhoneCheckResult[] = [];
+
+    for (const phone of numbers) {
+      const normalized = normalizePhone(phone);
+      const key = normalized ?? `__invalid__:${phone}`;
+      const template = uniqueResults.get(key);
+
+      if (!template) continue;
+
+      results.push({
+        ...template,
+        phone,
+      });
+    }
+
+    const response: CheckResponse = {
+      summary: buildSummary(results),
+      results,
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('check route error:', error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Внутренняя ошибка при проверке номеров',
+      },
+      { status: 500 }
+    );
   }
-
-  const results: PhoneCheckResult[] = [];
-
-  for (const phone of numbers) {
-    const normalized = normalizePhone(phone);
-    const key = normalized ?? `__invalid__:${phone}`;
-    const template = uniqueResults.get(key);
-
-    if (!template) continue;
-
-    results.push({
-      ...template,
-      phone,
-    });
-  }
-
-  const response: CheckResponse = {
-    summary: buildSummary(results),
-    results,
-  };
-
-  return NextResponse.json(response);
 }

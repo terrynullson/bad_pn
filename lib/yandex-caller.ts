@@ -1,7 +1,8 @@
 import {
   analyzePhoneSearchHits,
+  collectPhoneSearchHits,
   duckDuckGoSearchUrl,
-  fetchDdgHits,
+  type PhoneSearchCache,
   type SearchHit,
 } from './search-fallback';
 import type { YandexCallerCheck } from './types';
@@ -28,22 +29,6 @@ function extractLabel(text: string): string | null {
   if (/отрицательн/i.test(text)) return 'Отрицательная оценка';
   if (/спам/i.test(text)) return 'Спам';
   return null;
-}
-
-function mergeHits(...groups: (SearchHit[] | null)[]): SearchHit[] {
-  const seen = new Set<string>();
-  const merged: SearchHit[] = [];
-
-  for (const group of groups) {
-    for (const hit of group ?? []) {
-      const key = `${hit.url}|${hit.title}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(hit);
-    }
-  }
-
-  return merged;
 }
 
 function analyzeYandexHits(phone: string, hits: SearchHit[]) {
@@ -107,16 +92,16 @@ async function probeDirectYandex(phone: string): Promise<boolean> {
 }
 
 export async function fetchYandexCaller(
-  phone: string
+  phone: string,
+  cache?: PhoneSearchCache
 ): Promise<YandexCallerCheck | null> {
   if (!isFallbackEnabled()) return null;
 
-  const blocked = await probeDirectYandex(phone);
-  const hits = mergeHits(
-    await fetchDdgHits(`${phone} нежелательный звонок`, phone),
-    await fetchDdgHits(`${phone} яндекс кто звонил`, phone),
-    await fetchDdgHits(phone, phone)
-  );
+  const blocked = process.env.VERCEL
+    ? true
+    : await probeDirectYandex(phone);
+  const collected = await collectPhoneSearchHits(phone, cache);
+  const hits = collected?.hits ?? [];
 
   if (hits.length === 0) {
     return {

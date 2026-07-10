@@ -131,5 +131,5 @@ export interface DeepSeekCheck {
   sourceUrl: string;
 }
 
-export const BATCH_SIZE = 8;
+export const BATCH_SIZE = 1;
 export const MAX_BATCH_SIZE = 30;

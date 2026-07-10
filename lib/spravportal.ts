@@ -1,5 +1,5 @@
 import { delay } from './rate-limit';
-import { fetchSearchFallback } from './search-fallback';
+import { fetchSearchFallback, type PhoneSearchCache } from './search-fallback';
 import type { SpravPortalCheck } from './types';
 
 const PAGE_BASE = 'https://www.spravportal.ru/services/who-calls/num';
@@ -176,7 +176,8 @@ async function fetchSpravPortalApi(
 }
 
 export async function fetchSpravPortal(
-  phone: string
+  phone: string,
+  cache?: PhoneSearchCache
 ): Promise<SpravPortalCheck | null> {
   const apiKey = process.env.WHO_CALLS_API_KEY;
   const apiBase = process.env.WHO_CALLS_API_URL;
@@ -193,7 +194,7 @@ export async function fetchSpravPortal(
   }
 
   await delay(400);
-  const searchResult = await fetchSearchFallback(phone);
+  const searchResult = await fetchSearchFallback(phone, cache);
   if (searchResult) {
     return searchResult;
   }

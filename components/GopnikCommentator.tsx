@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { parseJsonResponse } from '@/lib/api-response';
 
 const JOKE_INTERVAL_MS = 20_000;
 const FADE_MS = 320;
@@ -58,7 +59,9 @@ export default function GopnikCommentator({
     const response = await fetch(`/api/joke?${params.toString()}`);
     if (!response.ok) return [];
 
-    const data = (await response.json()) as { jokes?: string[]; joke?: string };
+    const data = await parseJsonResponse<{ jokes?: string[]; joke?: string }>(
+      response
+    );
     if (Array.isArray(data.jokes) && data.jokes.length > 0) {
       return data.jokes;
     }
@@ -116,7 +119,7 @@ export default function GopnikCommentator({
     const response = await fetch(`/api/joke?${params.toString()}`);
     if (!response.ok) return null;
 
-    const data = (await response.json()) as { joke: string };
+    const data = await parseJsonResponse<{ joke: string }>(response);
     return data.joke;
   }, []);
 

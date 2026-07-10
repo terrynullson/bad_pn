@@ -1,4 +1,4 @@
-import { collectPhoneSearchHits } from './search-fallback';
+import { collectPhoneSearchHits, type PhoneSearchCache } from './search-fallback';
 import type { PhoneSourceData } from './checker';
 import type { DeepSeekCheck, Verdict } from './types';
 
@@ -153,7 +153,8 @@ function parseCheckResponse(raw: string): Omit<
 
 export async function fetchDeepSeekCheck(
   phone: string,
-  sourceData: PhoneSourceData
+  sourceData: PhoneSourceData,
+  cache?: PhoneSearchCache
 ): Promise<DeepSeekCheck | null> {
   if (!isEnabled() || !shouldRunCheck(sourceData)) {
     return null;
@@ -162,7 +163,7 @@ export async function fetchDeepSeekCheck(
   const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const collected = await collectPhoneSearchHits(phone);
+  const collected = await collectPhoneSearchHits(phone, cache);
   const hits = collected?.hits ?? [];
   const sourceUrl = collected?.sourceUrl ?? deepSeekCheckSourceUrl(phone);
 
