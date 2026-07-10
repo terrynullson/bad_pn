@@ -12,4 +12,6 @@ export function getVerdictLabel(verdict: Verdict): string {
 }
 
 /** @deprecated Используйте getVerdictLabel */
-export const verdictLabel = getVerdictLabel;
+export function verdictLabel(verdict: Verdict): string {
+  return getVerdictLabel(verdict);
+}
