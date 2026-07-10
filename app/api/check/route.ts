@@ -89,6 +89,8 @@ export async function POST(request: NextRequest) {
           ktozvonil: null,
           ktozvonilUnavailable: false,
           spravportal: null,
+          callfilter: null,
+          yandexCaller: null,
         })
       );
       continue;

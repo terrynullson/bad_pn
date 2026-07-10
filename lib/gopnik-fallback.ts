@@ -16,8 +16,21 @@ const FALLBACK_JOKES = [
   'Один номер проверили — уже как будто марафон пробежали. Лень — наше всё.',
 ];
 
+const FINALE_MESSAGES = [
+  'Ну всё, базу прогнали. Смотри отчёт и не обзванивай мусор.',
+  'Проверка закончилась. Дальше сам — я со своей стороны сделал что мог.',
+  'Готово, брат. Хуйня отсеяна, остальное в таблице — разбирайся.',
+  'Всё, отпускаю. Номера проверены, совесть чиста, можно пить чай.',
+  'Финиш. Теперь смотри кто ЗАЕБИСЬ, а кто ХУЙНЯ — и звони с умом.',
+  'База отработала. Дальше твой ход — я в отпуск до следующей пачки.',
+];
+
 export function pickFallbackJoke(exclude: string[] = []): string {
   const pool = FALLBACK_JOKES.filter((joke) => !exclude.includes(joke));
   const source = pool.length > 0 ? pool : FALLBACK_JOKES;
   return source[Math.floor(Math.random() * source.length)];
+}
+
+export function pickFinaleMessage(): string {
+  return FINALE_MESSAGES[Math.floor(Math.random() * FINALE_MESSAGES.length)];
 }

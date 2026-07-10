@@ -35,11 +35,13 @@ export default function Home() {
   const [results, setResults] = useState<PhoneCheckResult[]>([]);
   const [summary, setSummary] = useState<CheckSummary | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [showCommentator, setShowCommentator] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const handleCheck = async (numbers: string[]) => {
     setIsChecking(true);
+    setShowCommentator(true);
     setError(null);
     setResults([]);
     setSummary(null);
@@ -96,10 +98,12 @@ export default function Home() {
           <FileUpload onCheck={handleCheck} isChecking={isChecking} />
         </section>
 
-        {isChecking && (
+        {showCommentator && (
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <ProgressBar current={progress.current} total={progress.total} />
-            <GopnikCommentator active={isChecking} progress={progress} />
+            {isChecking && (
+              <ProgressBar current={progress.current} total={progress.total} />
+            )}
+            <GopnikCommentator checking={isChecking} progress={progress} />
           </section>
         )}
 

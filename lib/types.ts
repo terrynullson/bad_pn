@@ -89,5 +89,33 @@ export interface SpravPortalCheck {
   fallbackSourceUrl?: string;
 }
 
+export type CallfilterScore = 'negative' | 'neutral' | 'positive' | 'unknown';
+
+export interface CallfilterCheck {
+  available: boolean;
+  fallback: boolean;
+  score: CallfilterScore | null;
+  status: string | null;
+  categories: string[];
+  ratings: string[];
+  reviewsCount: number;
+  description: string | null;
+  isNegative: boolean;
+}
+
+export interface YandexCallerCheck {
+  available: boolean;
+  fallback: boolean;
+  blocked: boolean;
+  inDatabase: boolean;
+  isUnwanted: boolean;
+  isNegative: boolean;
+  isSpam: boolean;
+  label: string | null;
+  signals: string[];
+  snippet: string | null;
+  sourceUrl: string;
+}
+
 export const BATCH_SIZE = 8;
 export const MAX_BATCH_SIZE = 30;
